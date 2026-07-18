@@ -1,0 +1,53 @@
+# ============
+# Root
+# ============
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.sublime-workspace
+*.sublime-project
+
+# Node (root)
+node_modules/
+
+# Go
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# WhatsApp session DB (backend)
+backend/whatsapp_session.db
+backend/whatsapp_session.db-shm
+backend/whatsapp_session.db-wal
+
+# ============
+# Frontend
+# ============
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/coverage/
+frontend/.turbo/
+frontend/.cache/
+frontend/.env
+frontend/.env.*
+frontend/*.log
+
+# ============
+# Backend
+# ============
+backend/bin/
+backend/.env
+backend/.env.*
+backend/*.log
+backend/tmp/
+
