@@ -51,3 +51,4 @@ backend/.env.*
 backend/*.log
 backend/tmp/
 
+nomer telp customer.csv
