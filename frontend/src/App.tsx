@@ -6,12 +6,17 @@ interface StatusMessage {
   text: string;
 }
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export default function App() {
   const [message, setMessage] = useState<string>("");
   const [rawNumbers, setRawNumbers] = useState<string>("");
   const [imageBase64, setImageBase64] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
+
+  const [isScheduled, setIsScheduled] = useState<boolean>(false);
+  const [scheduledAt, setScheduledAt] = useState<string>("");
 
   // 1. Handler Import File CSV
   const handleCsvUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -24,10 +29,8 @@ export default function App() {
       complete: (results) => {
         const numbers: string[] = [];
 
-        // Parsing setiap baris CSV untuk mengambil kolom yang berisi nomor HP
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         results.data.forEach((row: any) => {
-          // Mencari kolom bernama 'nomor', 'phone', 'whatsapp', 'hp', atau mengambil kolom pertama jika nama beda
           const phoneValue =
             row.nomor ||
             row.Nomor ||
@@ -43,7 +46,6 @@ export default function App() {
         });
 
         if (numbers.length > 0) {
-          // Gabungkan nomor-nomor baru dari CSV ke dalam textarea (dipisah baris baru)
           setRawNumbers((prev) => {
             const existing = prev ? prev.trim() + "\n" : "";
             return existing + numbers.join("\n");
@@ -65,7 +67,6 @@ export default function App() {
       },
     });
 
-    // Reset input file agar file yang sama bisa diunggah ulang jika dibutuhkan
     e.target.value = "";
   };
 
@@ -85,7 +86,7 @@ export default function App() {
     }
   };
 
-  // 3. Handler Submit Form Blast
+  // 3. Handler Submit Form Blast (Stabil & Aman dari Runtime Crash)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -96,6 +97,7 @@ export default function App() {
       .map((num) => num.trim())
       .filter((num) => num.length > 0);
 
+    // Validasi Input Dasar
     if (numbersArray.length === 0 || !message) {
       setStatus({
         type: "error",
@@ -105,8 +107,42 @@ export default function App() {
       return;
     }
 
+    // Validasi Penjadwalan
+    let formattedSchedule: string | undefined = undefined;
+    if (isScheduled) {
+      if (!scheduledAt) {
+        setStatus({
+          type: "error",
+          text: "Silakan pilih tanggal dan waktu pengiriman jadwal!",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const parsedDate = new Date(scheduledAt);
+      if (isNaN(parsedDate.getTime())) {
+        setStatus({
+          type: "error",
+          text: "Format tanggal/waktu yang dimasukkan tidak valid.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (parsedDate.getTime() <= Date.now()) {
+        setStatus({
+          type: "error",
+          text: "Waktu jadwal harus di masa depan.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      formattedSchedule = parsedDate.toISOString();
+    }
+
     try {
-      const response = await fetch("http://localhost:3000/api/blast", {
+      const response = await fetch(`${API_URL}/api/blast`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,36 +151,52 @@ export default function App() {
           numbers: numbersArray,
           message: message,
           image_data: imageBase64,
+          scheduled_at: formattedSchedule,
         }),
       });
 
-      const data = await response.json();
+      // Buka penanganan respon JSON dengan aman
+      const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
         setStatus({
           type: "success",
-          text: `🚀 ${data.message} Total target: ${data.target} nomor.`,
+          text: isScheduled
+            ? `⏰ ${data.message || "Pesan berhasil dijadwalkan."} Jadwal: ${
+                data.scheduled_at || scheduledAt
+              }`
+            : `🚀 ${data.message || "Proses blast dimulai."} Total target: ${
+                data.target || numbersArray.length
+              } nomor.`,
         });
         setMessage("");
         setRawNumbers("");
         setImageBase64("");
+        setIsScheduled(false);
+        setScheduledAt("");
 
-        // Reset input gambar di DOM
         const imageInput = document.getElementById(
-          "image-file",
+          "image-file"
         ) as HTMLInputElement;
         if (imageInput) imageInput.value = "";
+      } else if (data.invalid_numbers && Array.isArray(data.invalid_numbers)) {
+        setStatus({
+          type: "error",
+          text: `Nomor tidak valid: ${data.invalid_numbers.join(", ")}`,
+        });
       } else {
         setStatus({
           type: "error",
-          text: data.error || "Gagal menjalankan blast.",
+          text:
+            data.error ||
+            `Server merespons dengan status error (${response.status}).`,
         });
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err: unknown) {
+      console.error("Submit Exception Captured:", err);
       setStatus({
         type: "error",
-        text: "Gagal terhubung ke server backend Go Fiber.",
+        text: `Gagal terhubung ke server backend Go Fiber. Pastikan server Go berjalan di ${API_URL}`,
       });
     } finally {
       setLoading(false);
@@ -158,7 +210,7 @@ export default function App() {
           🟢 WA Blast Dashboard
         </h2>
         <p className="mt-2 text-center text-sm text-slate-500">
-          Vite + Go Fiber Engine • Import CSV & Support Foto
+          Vite + Go Fiber Engine • CSV, Media & Pesan Terjadwal
         </p>
       </div>
 
@@ -276,6 +328,48 @@ export default function App() {
               />
             </div>
 
+            {/* Opsi Penjadwalan Pesan */}
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="schedule-toggle"
+                  checked={isScheduled}
+                  onChange={(e) => setIsScheduled(e.target.checked)}
+                  disabled={loading}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 border-slate-300 cursor-pointer"
+                />
+                <label
+                  htmlFor="schedule-toggle"
+                  className="text-sm font-semibold text-slate-700 cursor-pointer"
+                >
+                  ⏰ Jadwalkan Pengiriman Pesan
+                </label>
+              </div>
+
+              {isScheduled && (
+                <div>
+                  <label
+                    htmlFor="scheduled-at"
+                    className="block text-xs text-slate-500 mb-1"
+                  >
+                    Pilih Tanggal & Jam Pengiriman:
+                  </label>
+                  <input
+                    id="scheduled-at"
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    disabled={loading}
+                    className="block w-full sm:text-sm border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                  <p className="mt-1 text-[11px] text-amber-600">
+                    ⚠️ Server backend (go run) harus tetap berjalan sampai waktu ini agar pesan terkirim.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Status Alert */}
             {status && (
               <div
@@ -300,7 +394,11 @@ export default function App() {
                     : "bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
                 }`}
               >
-                {loading ? "Mengolah Data..." : "🚀 Mulai Kirim Massal"}
+                {loading
+                  ? "Mengolah Data..."
+                  : isScheduled
+                  ? "⏰ Simpan Jadwal Pesan"
+                  : "🚀 Mulai Kirim Massal"}
               </button>
             </div>
           </form>

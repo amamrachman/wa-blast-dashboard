@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.14
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	go.mau.fi/whatsmeow v0.0.0-20260716095330-85d99080dee8
 	google.golang.org/protobuf v1.36.11
