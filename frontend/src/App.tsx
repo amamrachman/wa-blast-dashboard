@@ -8,6 +8,22 @@ interface StatusMessage {
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
+// Helper for number normalization (Logic moved from backend-style to shared util)
+const normalizeNumber = (number: string): string => {
+  let clean = number.trim();
+  clean = clean.replace(/[+\s-()]/g, "");
+
+  if (clean.startsWith("0")) {
+    clean = "62" + clean.substring(1);
+  } else if (clean.startsWith("8")) {
+    clean = "62" + clean;
+  }
+
+  return clean;
+};
+
+// Delay 15 - 25 detik lebih aman untuk blast massal
+
 export default function App() {
   const [message, setMessage] = useState<string>("");
   const [rawNumbers, setRawNumbers] = useState<string>("");
@@ -17,7 +33,6 @@ export default function App() {
 
   const [isScheduled, setIsScheduled] = useState<boolean>(false);
   const [scheduledAt, setScheduledAt] = useState<string>("");
-
   // 1. Handler Import File CSV
   const handleCsvUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,7 +56,8 @@ export default function App() {
             Object.values(row)[0];
 
           if (phoneValue && typeof phoneValue === "string") {
-            numbers.push(phoneValue.trim());
+            const normalized = normalizeNumber(phoneValue);
+            numbers.push(normalized);
           }
         });
 
@@ -94,8 +110,8 @@ export default function App() {
 
     const numbersArray = rawNumbers
       .split(/[\n,]+/)
-      .map((num) => num.trim())
-      .filter((num) => num.length > 0);
+      .map((num) => normalizeNumber(num.trim()))
+      .filter((num) => num.length >= 10 && num.length <= 16);
 
     // Validasi Input Dasar
     if (numbersArray.length === 0 || !message) {
@@ -176,7 +192,7 @@ export default function App() {
         setScheduledAt("");
 
         const imageInput = document.getElementById(
-          "image-file"
+          "image-file",
         ) as HTMLInputElement;
         if (imageInput) imageInput.value = "";
       } else if (data.invalid_numbers && Array.isArray(data.invalid_numbers)) {
@@ -364,7 +380,8 @@ export default function App() {
                     className="block w-full sm:text-sm border border-slate-300 rounded-lg p-2.5 text-slate-800 bg-white focus:ring-emerald-500 focus:border-emerald-500"
                   />
                   <p className="mt-1 text-[11px] text-amber-600">
-                    ⚠️ Server backend (go run) harus tetap berjalan sampai waktu ini agar pesan terkirim.
+                    ⚠️ Server backend (go run) harus tetap berjalan sampai waktu
+                    ini agar pesan terkirim.
                   </p>
                 </div>
               )}
@@ -397,8 +414,8 @@ export default function App() {
                 {loading
                   ? "Mengolah Data..."
                   : isScheduled
-                  ? "⏰ Simpan Jadwal Pesan"
-                  : "🚀 Mulai Kirim Massal"}
+                    ? "⏰ Simpan Jadwal Pesan"
+                    : "🚀 Mulai Kirim Massal"}
               </button>
             </div>
           </form>

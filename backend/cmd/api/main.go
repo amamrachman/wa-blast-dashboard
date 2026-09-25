@@ -27,8 +27,8 @@ type BlastPayload struct {
 }
 
 func sendDelay() time.Duration {
-	jitter := time.Duration(rand.Intn(2000)) * time.Millisecond
-	return 5*time.Second + jitter
+    jitter := time.Duration(rand.Intn(10000)) * time.Millisecond
+    return 15*time.Second + jitter
 }
 
 func runBlast(waEngine *whatsapp.WAEngine, numbers []string, message string, imageData string, logPrefix string) {
